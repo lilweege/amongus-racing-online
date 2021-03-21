@@ -3,7 +3,7 @@ let Player = require('./player.js');
 let lobby = new Game();
 
 console.log("runningg");
-let location = '/public';
+let location = '/client';
 let express = require('express');
 let app = express();
 let serv = require('http').createServer(app);
@@ -23,9 +23,7 @@ io.sockets.on('connection', (socket) => {
 	SOCKET_LIST[socket.id] = socket;
 
 	let self = new Player(socket.id);
-	socket.on('keyPress', (keys) => {
-		self.keys = keys;
-	});
+	socket.on('sendUpdate', data => { self.data = data; });
 	lobby.addPlayer(socket.id, self);
 
 	socket.on('disconnect', () => {
@@ -37,11 +35,6 @@ io.sockets.on('connection', (socket) => {
 
 const FR = 30;
 setInterval(() => {
-	lobby.gameLoop();
-	let data = {
-		players: lobby.players
-	};
-	for (let socket in SOCKET_LIST) {
-		SOCKET_LIST[socket].emit('update', data);
-	}
+	for (let socket in SOCKET_LIST)
+		SOCKET_LIST[socket].emit('receiveUpdate', lobby.players);
 }, 1000 / FR);

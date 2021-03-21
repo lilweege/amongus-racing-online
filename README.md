@@ -1,4 +1,3 @@
-# no-lag-game
+# amongus racing online
 
-- boiler plate for a node.js multiplayer game
-- interpolation is the next step
+- just messing aroung with threejs

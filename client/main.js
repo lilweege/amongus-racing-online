@@ -4,6 +4,16 @@ import {FBXLoader} from 'https://cdn.jsdelivr.net/npm/three@0.118.1/examples/jsm
 import {GLTFLoader} from 'https://cdn.jsdelivr.net/npm/three@0.118.1/examples/jsm/loaders/GLTFLoader.js';
 
 
+let socket = io();
+
+
+let otherPlayers = {};
+let playerScene = {};
+socket.on('receiveUpdate', playerData => {
+	otherPlayers = playerData;
+});
+
+
 
 class BasicCharacterControllerInput {
   constructor() {
@@ -71,6 +81,7 @@ class BasicCharacterControllerInput {
 };
 
 
+
 class BasicCharacterController {
   constructor(params) {
     this._Init(params);
@@ -89,8 +100,9 @@ class BasicCharacterController {
   }
 
   _LoadModels() {
-	
-	const resPath = './resources/amongus/';
+	  
+	  
+	const resPath = '/client/resources/amongus/';
 	const textureLoader = new THREE.TextureLoader();
 	const tex = textureLoader.load(resPath + `Plastic_4K_Diffuse${ this.col }.jpg`);
 	
@@ -105,10 +117,12 @@ class BasicCharacterController {
 		}
         c.castShadow = true;
       });
-
+	
       this._target = fbx;
-      this._params.scene.add(this._target);
-    });
+	  this._params.scene.add(this._target);
+	});
+	
+	  // playerScene[socket.id] = {}; // assume not undefined
   }
 
   get Position() {
@@ -181,6 +195,15 @@ class BasicCharacterController {
 
     this._position.copy(controlObject.position);
 
+      let packet = {
+        px: this._position.x,
+        pz: this._position.z,
+        rx: this._target.rotation.x,
+        ry: this._target.rotation.y,
+        rz: this._target.rotation.z,
+        col: this.col,
+      };
+      socket.emit("sendUpdate", packet);
   }
 };
 
@@ -280,19 +303,19 @@ class ThirdPersonCameraDemo {
 
     const loader = new THREE.CubeTextureLoader();
     const texture = loader.load([
-        './resources/posx.jpg',
-        './resources/negx.jpg',
-        './resources/posy.jpg',
-        './resources/negy.jpg',
-        './resources/posz.jpg',
-        './resources/negz.jpg',
+        '/client/resources/posx.jpg',
+        '/client/resources/negx.jpg',
+        '/client/resources/posy.jpg',
+        '/client/resources/negy.jpg',
+        '/client/resources/posz.jpg',
+        '/client/resources/negz.jpg',
     ]);
     texture.encoding = THREE.sRGBEncoding;
     this._scene.background = texture;
 	
 	const textureLoader = new THREE.TextureLoader();
-	const texture1 = textureLoader.load('./resources/track1.png');
-	const texture2 = textureLoader.load('./resources/green.png');
+	const texture1 = textureLoader.load('/client/resources/track1.png');
+	const texture2 = textureLoader.load('/client/resources/green.png');
     const plane = new THREE.Mesh(
         new THREE.PlaneGeometry(100, 100, 10, 10),
         new THREE.MeshStandardMaterial({
@@ -318,7 +341,6 @@ class ThirdPersonCameraDemo {
     plane2.receiveShadow = false;
     plane2.rotation.x = -Math.PI / 2;
 	plane2.position.y = -1;
-	console.log(plane2)
     this._scene.add(plane2);
 
 
@@ -369,9 +391,87 @@ class ThirdPersonCameraDemo {
     }
 
     this._thirdPersonCamera.Update(timeElapsedS);
+	
+	// if (this._controls._input._keys.space){
+	// console.log(this._scene)
+	// console.log(playerScene)
+	// console.log(otherPlayers)
+	
+	let seenIDs = new Set();
+	for (let id in otherPlayers) {
+		seenIDs.add(id);
+	}
+	
+	if (this._controls._input._keys.space)
+		console.log(seenIDs)
+	for (let id in playerScene) {
+		let obj = playerScene[id];
+		// console.log(obj)
+		if (!seenIDs.has(obj.name)) {
+			this._scene.remove(obj);
+		}
+	}
+	
+	for (let id in otherPlayers) {
+		// console.log(this._controls._target.rotation.y)
+		if (id == socket.id)
+			continue;
+		
+		let data = otherPlayers[id].data;
+		
+		if (!playerScene[id] && data.col != -1) {
+
+			const resPath = '/client/resources/amongus/';
+			const textureLoader = new THREE.TextureLoader();
+			const tex = textureLoader.load(resPath + `Plastic_4K_Diffuse${ data.col }.jpg`);
+			
+			const loader = new FBXLoader();
+			loader.setPath(resPath);
+			loader.load('among us + turbosmooth 1.FBX', (fbx) => {
+			  fbx.scale.setScalar(0.1 * .2);
+			  fbx.traverse(c => {
+				if (c.isMesh) {
+					c.material.map = tex;
+					c.material.needsUpdate = true;
+				}
+				c.castShadow = true;
+			  });
+			
+				if (playerScene[id])
+					this._scene.remove(playerScene[id])
+			  playerScene[id] = fbx;
+			  playerScene[id].name = id;
+			playerScene[id].position.x = data.px;
+			playerScene[id].position.z = data.pz;
+			playerScene[id].rotation.x = data.rx;
+			playerScene[id].rotation.y = data.ry;
+			playerScene[id].rotation.z = data.rz;
+			  // this should be pass by reference probably
+			  this._scene.add(playerScene[id]);
+			  console.log(this._scene)
+			  console.log(playerScene[id])
+			});
+		}
+		
+		// update player object data
+		// console.log(playerScene[id])
+		if (playerScene[id]) {
+			playerScene[id].position.x = data.px;
+			playerScene[id].position.z = data.pz;
+			playerScene[id].rotation.x = data.rx;
+			playerScene[id].rotation.y = data.ry;
+			playerScene[id].rotation.z = data.rz;
+		}
+	}
+	
+	// if (this._controls._input._keys.space){
+		// console.log(this._scene)
+		// console.log(playerScene)
+		// console.log(otherPlayers)
+		// console.log(playerScene)
+	// }
   }
 }
-
 
 let _APP = null;
 
